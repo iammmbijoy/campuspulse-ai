@@ -11,6 +11,8 @@ from .serializers import (
 )
 from ai_engine.models import AIDecisionLog
 from ai_engine.services import analyze_incident_with_gemini
+from ai_engine.duplicate_detector import check_and_merge_duplicate
+from ai_engine.routing import calculate_sla_deadline, auto_assign_technician
 
 
 class TicketListCreateView(generics.ListCreateAPIView):
@@ -62,18 +64,7 @@ class TicketListCreateView(generics.ListCreateAPIView):
         ticket.ai_checklist = ai_result.get('checklist', [])
         ticket.save()
 
-        # ৩. স্বচ্ছতার জন্য AI Decision Log সেভ করা
-        AIDecisionLog.objects.create(
-            ticket=ticket,
-            detected_language=ai_result.get('detected_language', 'Unknown'),
-            predicted_category=ticket.category,
-            predicted_urgency=ticket.urgency,
-            confidence_score=ticket.ai_confidence,
-            reasoning=ai_result.get('reasoning', 'Classified by Gemini AI.'),
-            raw_ai_response=ai_result
-        )
-
-        # ৪. প্রথম টাইমলাইন হিস্ট্রি তৈরি করা
+        # ৩. প্রথম টাইমলাইন হিস্ট্রি তৈরি করা
         TicketUpdate.objects.create(
             ticket=ticket,
             updated_by=request.user,
@@ -81,7 +72,37 @@ class TicketListCreateView(generics.ListCreateAPIView):
             note=f"Incident reported and analyzed by AI ({ticket.category.upper()} | Urgency: {ticket.urgency.upper()})."
         )
 
-        detail_data = TicketDetailSerializer(ticket, context={'request': request}).data
+        # ৪. ডুপ্লিকেট চেক করা (একই রুমে একই সমস্যা আগে রিপোর্ট হয়েছে কি না)
+        parent_ticket = check_and_merge_duplicate(ticket)
+        is_duplicate = parent_ticket is not None
+        assign_reason = ""
+
+        if is_duplicate:
+            # ডুপ্লিকেট হলে মূল টিকিটের তথ্য ফেরত পাঠানো হবে
+            target_ticket = parent_ticket
+            assign_reason = f"Merged into existing parent ticket #{parent_ticket.id}."
+        else:
+            # নতুন অনন্য সমস্যা হলে SLA ডেডলাইন সেট ও অটো টেকনিশিয়ান অ্যাসাইন করা
+            ticket.sla_deadline = calculate_sla_deadline(ticket.urgency)
+            ticket.save()
+            assign_reason = auto_assign_technician(ticket)
+            target_ticket = ticket
+
+        # ৫. স্বচ্ছতার জন্য AI Decision Log সেভ করা
+        AIDecisionLog.objects.create(
+            ticket=ticket,
+            detected_language=ai_result.get('detected_language', 'Unknown'),
+            predicted_category=ticket.category,
+            predicted_urgency=ticket.urgency,
+            confidence_score=ticket.ai_confidence,
+            reasoning=ai_result.get('reasoning', 'Classified by Gemini AI.'),
+            is_duplicate_detected=is_duplicate,
+            assigned_technician_reason=assign_reason,
+            raw_ai_response=ai_result
+        )
+
+        detail_data = TicketDetailSerializer(target_ticket, context={'request': request}).data
+        detail_data['is_duplicate_merged'] = is_duplicate
         return Response(detail_data, status=status.HTTP_201_CREATED)
 
 

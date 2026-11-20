@@ -9,6 +9,8 @@ from .serializers import (
     TicketDetailSerializer,
     TicketFeedbackSerializer,
 )
+from ai_engine.models import AIDecisionLog
+from ai_engine.services import analyze_incident_with_gemini
 
 
 class TicketListCreateView(generics.ListCreateAPIView):
@@ -21,7 +23,6 @@ class TicketListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        # শুধু মূল (Parent) টিকিটগুলো দেখানো হবে (ডুপ্লিকেটগুলো ভেতরে মার্জ থাকবে)
         base_qs = Ticket.objects.filter(parent_ticket__isnull=True).order_by('-created_at')
 
         if user.role == 'admin':
@@ -35,12 +36,49 @@ class TicketListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         ticket = serializer.save(reporter=request.user)
 
-        # প্রথম টাইমলাইন হিস্ট্রি তৈরি করা
+        # ১. Gemini AI দিয়ে লেখা ও ছবি বিশ্লেষণ করা
+        image_path = ticket.image.path if ticket.image else None
+        ai_result = analyze_incident_with_gemini(
+            description=ticket.description,
+            building=ticket.building or "",
+            room_or_lab=ticket.room_or_lab or "",
+            image_path=image_path
+        )
+
+        # ২. AI-এর বিশ্লেষণ অনুযায়ী টিকিট আপডেট করা
+        valid_categories = ['general', 'it', 'electrical', 'plumbing', 'lab_equipment']
+        valid_urgencies = ['low', 'medium', 'high', 'critical']
+
+        category = ai_result.get('category', 'general')
+        urgency = ai_result.get('urgency', 'medium')
+
+        if not ticket.title:
+            ticket.title = ai_result.get('title') or ticket.description[:50]
+        ticket.category = category if category in valid_categories else 'general'
+        ticket.building = ai_result.get('building') or ticket.building
+        ticket.room_or_lab = ai_result.get('room_or_lab') or ticket.room_or_lab
+        ticket.urgency = urgency if urgency in valid_urgencies else 'medium'
+        ticket.ai_confidence = float(ai_result.get('confidence_score', 0.0))
+        ticket.ai_checklist = ai_result.get('checklist', [])
+        ticket.save()
+
+        # ৩. স্বচ্ছতার জন্য AI Decision Log সেভ করা
+        AIDecisionLog.objects.create(
+            ticket=ticket,
+            detected_language=ai_result.get('detected_language', 'Unknown'),
+            predicted_category=ticket.category,
+            predicted_urgency=ticket.urgency,
+            confidence_score=ticket.ai_confidence,
+            reasoning=ai_result.get('reasoning', 'Classified by Gemini AI.'),
+            raw_ai_response=ai_result
+        )
+
+        # ৪. প্রথম টাইমলাইন হিস্ট্রি তৈরি করা
         TicketUpdate.objects.create(
             ticket=ticket,
             updated_by=request.user,
             status='reported',
-            note='Incident reported by user.'
+            note=f"Incident reported and analyzed by AI ({ticket.category.upper()} | Urgency: {ticket.urgency.upper()})."
         )
 
         detail_data = TicketDetailSerializer(ticket, context={'request': request}).data

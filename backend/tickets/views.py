@@ -38,7 +38,7 @@ class TicketListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         ticket = serializer.save(reporter=request.user)
 
-        # ১. Gemini AI দিয়ে লেখা ও ছবি বিশ্লেষণ করা
+        # 1. Analyze incident text and image using Gemini AI
         image_path = ticket.image.path if ticket.image else None
         ai_result = analyze_incident_with_gemini(
             description=ticket.description,
@@ -47,7 +47,7 @@ class TicketListCreateView(generics.ListCreateAPIView):
             image_path=image_path
         )
 
-        # ২. AI-এর বিশ্লেষণ অনুযায়ী টিকিট আপডেট করা
+        # 2. Update ticket metadata with AI triage results
         valid_categories = ['general', 'it', 'electrical', 'plumbing', 'lab_equipment']
         valid_urgencies = ['low', 'medium', 'high', 'critical']
 
@@ -64,7 +64,7 @@ class TicketListCreateView(generics.ListCreateAPIView):
         ticket.ai_checklist = ai_result.get('checklist', [])
         ticket.save()
 
-        # ৩. প্রথম টাইমলাইন হিস্ট্রি তৈরি করা
+        # 3. Create initial timeline entry
         TicketUpdate.objects.create(
             ticket=ticket,
             updated_by=request.user,
@@ -72,23 +72,23 @@ class TicketListCreateView(generics.ListCreateAPIView):
             note=f"Incident reported and analyzed by AI ({ticket.category.upper()} | Urgency: {ticket.urgency.upper()})."
         )
 
-        # ৪. ডুপ্লিকেট চেক করা (একই রুমে একই সমস্যা আগে রিপোর্ট হয়েছে কি না)
+        # 4. Check for duplicate incidents in the same location and category
         parent_ticket = check_and_merge_duplicate(ticket)
         is_duplicate = parent_ticket is not None
         assign_reason = ""
 
         if is_duplicate:
-            # ডুপ্লিকেট হলে মূল টিকিটের তথ্য ফেরত পাঠানো হবে
+            # Return the merged parent ticket details
             target_ticket = parent_ticket
             assign_reason = f"Merged into existing parent ticket #{parent_ticket.id}."
         else:
-            # নতুন অনন্য সমস্যা হলে SLA ডেডলাইন সেট ও অটো টেকনিশিয়ান অ্যাসাইন করা
+            # Set SLA deadline and auto-assign an on-duty technician for unique incidents
             ticket.sla_deadline = calculate_sla_deadline(ticket.urgency)
             ticket.save()
             assign_reason = auto_assign_technician(ticket)
             target_ticket = ticket
 
-        # ৫. স্বচ্ছতার জন্য AI Decision Log সেভ করা
+        # 5. Record transparent AI decision log
         AIDecisionLog.objects.create(
             ticket=ticket,
             detected_language=ai_result.get('detected_language', 'Unknown'),

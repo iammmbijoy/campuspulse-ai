@@ -18,7 +18,7 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # রেজিস্ট্রেশনের সাথে সাথে JWT টোকেন তৈরি করে দেওয়া হচ্ছে
+        # Generate JWT tokens immediately upon registration
         refresh = RefreshToken.for_user(user)
         return Response({
             'message': 'User registered successfully!',

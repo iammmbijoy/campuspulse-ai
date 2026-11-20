@@ -7,8 +7,8 @@ from google.genai import types
 
 def analyze_incident_with_gemini(description: str, building: str = "", room_or_lab: str = "", image_path: str = None) -> dict:
     """
-    Gemini 2.5 Flash ব্যবহার করে বাংলা/ইংরেজি লেখা ও ছবি বিশ্লেষণ করে
-    স্ট্রাকচার্ড JSON আউটপুট দেয়।
+    Uses Gemini 2.5 Flash to analyze multilingual (Bengali/English/Banglish) text
+    and optional images, returning a structured JSON triage output.
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -40,7 +40,7 @@ def analyze_incident_with_gemini(description: str, building: str = "", room_or_l
 
     contents = [prompt]
 
-    # যদি ছবি আপলোড করা হয়ে থাকে, তবে সেটিও Gemini-কে দেখানো হবে (Multimodal)
+    # Attach image if uploaded for multimodal analysis
     if image_path and os.path.exists(image_path):
         try:
             img = Image.open(image_path)
@@ -64,7 +64,7 @@ def analyze_incident_with_gemini(description: str, building: str = "", room_or_l
 
 
 def _fallback_response(description: str, building: str, room_or_lab: str, error_msg: str) -> dict:
-    """যদি কোনো কারণে API কল ব্যর্থ হয়, সিস্টেম ক্র্যাশ না করে নিরাপদ ডিফল্ট ডেটা দেবে"""
+    """Provides a safe fallback triage output if the AI API call fails."""
     return {
         "title": description[:50] if description else "Campus Maintenance Issue",
         "detected_language": "Unknown",

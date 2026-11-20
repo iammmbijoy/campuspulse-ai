@@ -15,17 +15,17 @@ SLA_HOURS = {
 
 
 def calculate_sla_deadline(urgency: str):
-    """Urgency অনুযায়ী সমাধানের সময়সীমা (SLA Deadline) হিসাব করে"""
+    """Calculates the SLA resolution deadline based on ticket urgency."""
     hours = SLA_HOURS.get(urgency, 24)
     return timezone.now() + timedelta(hours=hours)
 
 
 def auto_assign_technician(ticket: Ticket) -> str:
     """
-    সমস্যার ক্যাটাগরি ও বর্তমান কাজের চাপ (active ticket count) দেখে
-    সেরা On-Duty টেকনিশিয়ানকে স্বয়ংক্রিয়ভাবে অ্যাসাইন করে।
+    Automatically assigns the best available on-duty technician based on
+    matching specialization and lowest active ticket workload.
     """
-    # ১. একই specialization ও অন-ডিউটি টেকনিশিয়ানদের কাজের চাপসহ খোঁজা
+    # 1. Search for on-duty technicians matching the ticket category
     candidates = User.objects.filter(
         role='technician',
         is_on_duty=True,
@@ -37,7 +37,7 @@ def auto_assign_technician(ticket: Ticket) -> str:
         )
     ).order_by('active_load', 'id')
 
-    # ২. ওই নির্দিষ্ট বিভাগের কেউ না থাকলে যেকোনো অন-ডিউটি টেকনিশিয়ান খোঁজা
+    # 2. Fallback to any on-duty technician if no specialist is currently available
     if not candidates.exists():
         candidates = User.objects.filter(
             role='technician',

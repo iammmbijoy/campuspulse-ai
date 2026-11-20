@@ -3,13 +3,13 @@ from tickets.models import Ticket, TicketUpdate
 
 def check_and_merge_duplicate(new_ticket: Ticket) -> Ticket | None:
     """
-    একই বিল্ডিং, রুম এবং ক্যাটাগরিতে কোনো চলমান (unresolved) মূল টিকিট
-    আছে কি না তা খুঁজে বের করে। থাকলে নতুন টিকিটটিকে মূল টিকিটের সাথে মার্জ করে।
+    Checks if an unresolved parent ticket already exists for the same building,
+    room/lab, and category. If found, merges the new ticket into the parent ticket.
     """
     if not new_ticket.building or not new_ticket.room_or_lab:
         return None
 
-    # একই লোকেশন ও ক্যাটাগরির ওপেন (resolved নয় এমন) মূল টিকিট খোঁজা
+    # Find the earliest open (unresolved) parent ticket in the same location and category
     existing_parent = Ticket.objects.filter(
         parent_ticket__isnull=True,
         category=new_ticket.category,
@@ -24,21 +24,21 @@ def check_and_merge_duplicate(new_ticket: Ticket) -> Ticket | None:
     if not existing_parent:
         return None
 
-    # নতুন টিকিটটিকে ডুপ্লিকেট হিসেবে মূল টিকিটের সাথে যুক্ত করা
+    # Link the new ticket as a duplicate child of the existing parent ticket
     new_ticket.parent_ticket = existing_parent
     new_ticket.status = existing_parent.status
     new_ticket.save()
 
-    # মূল টিকিটের ডুপ্লিকেট সংখ্যা বাড়ানো
+    # Increment duplicate report count on the parent ticket
     existing_parent.duplicate_count += 1
 
-    # যদি ২ বা তার বেশি ডুপ্লিকেট রিপোর্ট আসে এবং প্রায়োরিটি কম থাকে, তবে প্রায়োরিটি বাড়িয়ে দেওয়া
+    # Escalate urgency to 'high' if 2 or more duplicate reports are received
     if existing_parent.duplicate_count >= 2 and existing_parent.urgency in ['low', 'medium']:
         existing_parent.urgency = 'high'
 
     existing_parent.save()
 
-    # মূল টিকিটের টাইমলাইনে রেকর্ড রাখা
+    # Log the duplicate merge in the parent ticket's timeline
     TicketUpdate.objects.create(
         ticket=existing_parent,
         updated_by=new_ticket.reporter,

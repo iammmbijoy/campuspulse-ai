@@ -26,25 +26,25 @@ class Ticket(models.Model):
         ('escalated', 'Escalated'),
     )
 
-    # রিপোর্টকারীর তথ্য ও অভিযোগ
+    # Reporter details and incident description
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='reported_tickets'
     )
     title = models.CharField(max_length=255, blank=True)
-    description = models.TextField()  # বাংলা বা ইংরেজি অভিযোগ
+    description = models.TextField()  # Incident report in Bengali, English, or Banglish
     image = models.ImageField(upload_to='tickets/issues/', blank=True, null=True)
 
-    # AI দ্বারা বের করা তথ্য (Multimodal Triage)
+    # AI-extracted metadata (Multimodal Triage)
     category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='general')
     building = models.CharField(max_length=100, blank=True, null=True)
     room_or_lab = models.CharField(max_length=100, blank=True, null=True)
     urgency = models.CharField(max_length=20, choices=URGENCY_CHOICES, default='medium')
     ai_confidence = models.FloatField(default=0.0)
-    ai_checklist = models.JSONField(default=list, blank=True)  # AI-এর ধাপে ধাপে চেকলিস্ট
+    ai_checklist = models.JSONField(default=list, blank=True)  # Step-by-step troubleshooting checklist
 
-    # ডুপ্লিকেট মার্জিং (Smart Duplicate Merging)
+    # Smart Duplicate Merging
     parent_ticket = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -54,7 +54,7 @@ class Ticket(models.Model):
     )
     duplicate_count = models.PositiveIntegerField(default=0)
 
-    # অ্যাসাইনমেন্ট, স্ট্যাটাস ও SLA ট্র্যাকিং
+    # Assignment, status, and SLA tracking
     assigned_to = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -88,7 +88,7 @@ class TicketUpdate(models.Model):
 
 class TicketFeedback(models.Model):
     ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='feedback')
-    rating = models.PositiveSmallIntegerField()  # ১ থেকে ৫ রেটিং
+    rating = models.PositiveSmallIntegerField()  # Rating from 1 to 5
     comment = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

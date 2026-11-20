@@ -12,7 +12,7 @@ class AIDecisionLog(models.Model):
     predicted_category = models.CharField(max_length=30)
     predicted_urgency = models.CharField(max_length=20)
     confidence_score = models.FloatField(default=0.0)
-    reasoning = models.TextField()  # AI কেন এই সিদ্ধান্ত নিল তার ব্যাখ্যা
+    reasoning = models.TextField()  # Explanation of why the AI made this classification
     is_duplicate_detected = models.BooleanField(default=False)
     assigned_technician_reason = models.TextField(blank=True)
     raw_ai_response = models.JSONField(default=dict, blank=True)

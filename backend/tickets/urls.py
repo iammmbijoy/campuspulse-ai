@@ -1,13 +1,14 @@
-from django.contrib import admin
-from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
+from django.urls import path
+from .views import (
+    TicketListCreateView,
+    TicketDetailView,
+    TicketStatusUpdateView,
+    TicketFeedbackView,
+)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/accounts/', include('accounts.urls')),
-    path('api/tickets/', include('tickets.urls')),
+    path('', TicketListCreateView.as_view(), name='ticket_list_create'),
+    path('<int:pk>/', TicketDetailView.as_view(), name='ticket_detail'),
+    path('<int:pk>/status/', TicketStatusUpdateView.as_view(), name='ticket_status_update'),
+    path('<int:pk>/feedback/', TicketFeedbackView.as_view(), name='ticket_feedback'),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

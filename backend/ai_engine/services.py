@@ -1,24 +1,19 @@
 import os
 import json
 from PIL import Image
+from groq import Groq
 from google import genai
 from google.genai import types
 
 
 def analyze_incident_with_gemini(description: str, building: str = "", room_or_lab: str = "", image_path: str = None) -> dict:
     """
-    Uses Gemini 2.5 Flash to analyze multilingual (Bengali/English/Banglish) text
-    and optional images, returning a structured JSON triage output.
+    Analyzes multilingual (Bengali/English/Banglish) incident reports using free Groq models
+    (with Gemini fallback) and returns a structured JSON triage output.
     """
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return _fallback_response(description, building, room_or_lab, "GEMINI_API_KEY not found in .env")
-
-    client = genai.Client(api_key=api_key)
-
     prompt = f"""
     You are an expert AI Campus Facilities & Incident Triage Engine for a university.
-    Analyze the following incident report (which may be in Bengali, English, or Banglish) and the attached image (if provided).
+    Analyze the following incident report (which may be in Bengali, English, or Banglish).
 
     User Report Description: "{description}"
     Provided Building (if any): "{building}"
@@ -38,29 +33,52 @@ def analyze_incident_with_gemini(description: str, building: str = "", room_or_l
     Return ONLY raw JSON without markdown formatting.
     """
 
-    contents = [prompt]
+    groq_key = os.getenv("GROQ_API_KEY")
+    if groq_key:
+        client = Groq(api_key=groq_key)
+        last_groq_error = ""
+        for groq_model in [
+            "llama-3.1-8b-instant",
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "qwen/qwen3-32b",
+            "openai/gpt-oss-20b",
+        ]:
+            try:
+                chat_completion = client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": "You output only valid JSON."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    model=groq_model,
+                    temperature=0.2,
+                    response_format={"type": "json_object"},
+                )
+                return json.loads(chat_completion.choices[0].message.content)
+            except Exception as e:
+                last_groq_error = str(e)
+                continue
+        return _fallback_response(description, building, room_or_lab, f"Groq Error: {last_groq_error}")
 
-    # Attach image if uploaded for multimodal analysis
-    if image_path and os.path.exists(image_path):
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
         try:
-            img = Image.open(image_path)
-            contents.append(img)
-        except Exception:
-            pass
-
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.2,
+            client = genai.Client(api_key=gemini_key)
+            contents = [prompt]
+            if image_path and os.path.exists(image_path):
+                contents.append(Image.open(image_path))
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                ),
             )
-        )
-        result = json.loads(response.text)
-        return result
-    except Exception as e:
-        return _fallback_response(description, building, room_or_lab, str(e))
+            return json.loads(response.text)
+        except Exception as e:
+            return _fallback_response(description, building, room_or_lab, str(e))
+
+    return _fallback_response(description, building, room_or_lab, "No valid API key configured.")
 
 
 def _fallback_response(description: str, building: str, room_or_lab: str, error_msg: str) -> dict:

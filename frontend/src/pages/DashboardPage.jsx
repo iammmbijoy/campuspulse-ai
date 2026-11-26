@@ -5,12 +5,14 @@ import {
   RefreshCw,
   ClipboardList,
   Filter,
+  Search,
 } from 'lucide-react';
 import { fetchTickets } from '../api/ticketApi';
 import ReportIncidentModal from '../components/ReportIncidentModal';
 import TechUpdateModal from '../components/TechUpdateModal';
 import FeedbackModal from '../components/FeedbackModal';
 import TicketCard from '../components/TicketCard';
+import AdminAnalyticsPanel from '../components/AdminAnalyticsPanel';
 
 const DashboardPage = ({ user }) => {
   const [tickets, setTickets] = useState([]);
@@ -19,6 +21,7 @@ const DashboardPage = ({ user }) => {
   const [selectedTechTicket, setSelectedTechTicket] = useState(null);
   const [selectedFeedbackTicket, setSelectedFeedbackTicket] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadTickets = async () => {
     setLoading(true);
@@ -46,10 +49,18 @@ const DashboardPage = ({ user }) => {
     });
   };
 
-  const filteredTickets =
-    statusFilter === 'all'
-      ? tickets
-      : tickets.filter((t) => t.status === statusFilter);
+  const filteredTickets = tickets.filter((t) => {
+    const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      t.title?.toLowerCase().includes(q) ||
+      t.description?.toLowerCase().includes(q) ||
+      t.building?.toLowerCase().includes(q) ||
+      t.category?.toLowerCase().includes(q) ||
+      t.assigned_to_name?.toLowerCase().includes(q);
+    return matchesStatus && matchesSearch;
+  });
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -84,20 +95,37 @@ const DashboardPage = ({ user }) => {
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* Admin Operations Command Center (Visible only for Admin role) */}
+      {user?.role === 'admin' && !loading && (
+        <AdminAnalyticsPanel tickets={tickets} />
+      )}
+
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
           <ClipboardList className="w-4 h-4 text-indigo-400" />
           <span>Live Incident Feed ({filteredTickets.length})</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-3.5 h-3.5 text-slate-500" />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Quick Search Input */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search building, issue, tech..."
+              className="pl-8 pr-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500 w-48 sm:w-56"
+            />
+          </div>
+
+          <Filter className="w-3.5 h-3.5 text-slate-500 ml-1" />
           {['all', 'assigned', 'in_progress', 'resolved'].map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition cursor-pointer ${
                 statusFilter === status
                   ? 'bg-indigo-600 text-white'
                   : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
@@ -117,7 +145,7 @@ const DashboardPage = ({ user }) => {
       ) : filteredTickets.length === 0 ? (
         <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-10 text-center">
           <p className="text-sm text-slate-400">
-            No incident tickets found in this view.
+            No incident tickets match your current filter.
           </p>
         </div>
       ) : (

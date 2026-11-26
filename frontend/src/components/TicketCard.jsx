@@ -8,9 +8,11 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
+  Star,
+  MessageSquareCheck,
 } from 'lucide-react';
 
-const TicketCard = ({ ticket }) => {
+const TicketCard = ({ ticket, user, onOpenTechUpdate, onOpenFeedback }) => {
   const [showChecklist, setShowChecklist] = useState(false);
 
   const urgencyStyles = {
@@ -37,6 +39,22 @@ const TicketCard = ({ ticket }) => {
       minute: '2-digit',
     });
   };
+
+  // Get latest technician update if any
+  const latestUpdate =
+    ticket.updates && ticket.updates.length > 0
+      ? ticket.updates[ticket.updates.length - 1]
+      : null;
+
+  const canTechUpdate =
+    (user?.role === 'technician' || user?.role === 'admin') &&
+    ticket.status !== 'resolved' &&
+    ticket.status !== 'closed';
+
+  const canGiveFeedback =
+    user?.role === 'student' &&
+    ticket.status === 'resolved' &&
+    !ticket.feedback;
 
   return (
     <div className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 transition space-y-4">
@@ -67,14 +85,36 @@ const TicketCard = ({ ticket }) => {
           <p className="text-sm text-slate-400 mt-1">{ticket.description}</p>
         </div>
 
-        {/* Status Pill */}
-        <span
-          className={`self-start text-xs uppercase font-semibold px-3 py-1 rounded-full shrink-0 ${
-            statusStyles[ticket.status] || statusStyles.reported
-          }`}
-        >
-          {ticket.status.replace('_', ' ')}
-        </span>
+        {/* Right Side: Status Pill + Role Action Button */}
+        <div className="flex sm:flex-col items-end gap-2 shrink-0">
+          <span
+            className={`text-xs uppercase font-semibold px-3 py-1 rounded-full ${
+              statusStyles[ticket.status] || statusStyles.reported
+            }`}
+          >
+            {ticket.status.replace('_', ' ')}
+          </span>
+
+          {canTechUpdate && (
+            <button
+              onClick={() => onOpenTechUpdate(ticket)}
+              className="px-3 py-1.5 rounded-xl text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span>Update Status</span>
+            </button>
+          )}
+
+          {canGiveFeedback && (
+            <button
+              onClick={() => onOpenFeedback(ticket)}
+              className="px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Star className="w-3.5 h-3.5" />
+              <span>Rate Fix</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Metadata Bar: Location, Technician, SLA */}
@@ -103,9 +143,46 @@ const TicketCard = ({ ticket }) => {
         </div>
       </div>
 
+      {/* Latest Activity / Resolution Note & Proof Photo */}
+      {latestUpdate && (
+        <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 text-xs text-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-start gap-2">
+            <MessageSquareCheck className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="text-slate-400">Latest log: </span>
+              <span>{latestUpdate.note}</span>
+            </div>
+          </div>
+
+          {latestUpdate.proof_image && (
+            <a
+              href={latestUpdate.proof_image}
+              target="_blank"
+              rel="noreferrer"
+              className="text-indigo-400 hover:underline shrink-0 font-medium"
+            >
+              View Proof Photo →
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Submitted Student Rating Display */}
+      {ticket.feedback && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-300 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+            <span>
+              Student Rating: <strong>{ticket.feedback.rating}/5</strong>
+              {ticket.feedback.comment ? ` — "${ticket.feedback.comment}"` : ''}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Expandable AI Checklist */}
       {ticket.ai_checklist && ticket.ai_checklist.length > 0 && (
-        <div className="pt-2">
+        <div className="pt-1">
           <button
             type="button"
             onClick={() => setShowChecklist(!showChecklist)}

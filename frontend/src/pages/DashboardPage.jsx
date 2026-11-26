@@ -8,12 +8,16 @@ import {
 } from 'lucide-react';
 import { fetchTickets } from '../api/ticketApi';
 import ReportIncidentModal from '../components/ReportIncidentModal';
+import TechUpdateModal from '../components/TechUpdateModal';
+import FeedbackModal from '../components/FeedbackModal';
 import TicketCard from '../components/TicketCard';
 
 const DashboardPage = ({ user }) => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedTechTicket, setSelectedTechTicket] = useState(null);
+  const [selectedFeedbackTicket, setSelectedFeedbackTicket] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
 
   const loadTickets = async () => {
@@ -32,7 +36,6 @@ const DashboardPage = ({ user }) => {
     loadTickets();
   }, []);
 
-  // Add newly created ticket (or update merged parent ticket) at top of feed
   const handleTicketCreated = (createdTicket) => {
     setTickets((prev) => {
       const exists = prev.some((t) => t.id === createdTicket.id);
@@ -72,7 +75,7 @@ const DashboardPage = ({ user }) => {
           </button>
 
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => setIsReportModalOpen(true)}
             className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
@@ -114,23 +117,42 @@ const DashboardPage = ({ user }) => {
       ) : filteredTickets.length === 0 ? (
         <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-10 text-center">
           <p className="text-sm text-slate-400">
-            No incident tickets found in this view. Click{' '}
-            <strong className="text-indigo-400">Report Incident</strong> to test AI triage!
+            No incident tickets found in this view.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {filteredTickets.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+            <TicketCard
+              key={ticket.id}
+              ticket={ticket}
+              user={user}
+              onOpenTechUpdate={(t) => setSelectedTechTicket(t)}
+              onOpenFeedback={(t) => setSelectedFeedbackTicket(t)}
+            />
           ))}
         </div>
       )}
 
-      {/* Report Incident Modal */}
+      {/* Modals */}
       <ReportIncidentModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
         onTicketCreated={handleTicketCreated}
+      />
+
+      <TechUpdateModal
+        ticket={selectedTechTicket}
+        isOpen={Boolean(selectedTechTicket)}
+        onClose={() => setSelectedTechTicket(null)}
+        onStatusUpdated={loadTickets}
+      />
+
+      <FeedbackModal
+        ticket={selectedFeedbackTicket}
+        isOpen={Boolean(selectedFeedbackTicket)}
+        onClose={() => setSelectedFeedbackTicket(null)}
+        onFeedbackSubmitted={loadTickets}
       />
     </div>
   );

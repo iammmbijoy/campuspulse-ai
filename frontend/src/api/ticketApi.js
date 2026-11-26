@@ -21,3 +21,27 @@ export const createTicket = async ({ description, building, room_or_lab, imageFi
   });
   return response.data;
 };
+
+// Technician updates ticket status (in_progress / resolved) with note & proof photo
+export const updateTicketStatus = async (ticketId, { status, note, proofImage }) => {
+  const formData = new FormData();
+  formData.append('status', status);
+  if (note) formData.append('note', note);
+  if (proofImage) formData.append('proof_image', proofImage);
+
+  const response = await axiosClient.post(`/tickets/${ticketId}/update-status/`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+// Student submits star rating & comment after resolution
+export const submitTicketFeedback = async (ticketId, { rating, comment }) => {
+  const response = await axiosClient.post(`/tickets/${ticketId}/feedback/`, {
+    rating,
+    comment,
+  });
+  return response.data;
+};

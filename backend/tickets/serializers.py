@@ -1,5 +1,21 @@
 from rest_framework import serializers
 from .models import Ticket, TicketUpdate, TicketFeedback
+from ai_engine.models import AIDecisionLog
+
+
+class AIDecisionLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIDecisionLog
+        fields = [
+            'detected_language',
+            'predicted_category',
+            'predicted_urgency',
+            'confidence_score',
+            'reasoning',
+            'is_duplicate_detected',
+            'assigned_technician_reason',
+            'created_at',
+        ]
 
 
 class TicketUpdateSerializer(serializers.ModelSerializer):
@@ -32,6 +48,7 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     assigned_to_name = serializers.CharField(source='assigned_to.username', read_only=True, default=None)
     updates = TicketUpdateSerializer(many=True, read_only=True)
     feedback = TicketFeedbackSerializer(read_only=True)
+    ai_log = AIDecisionLogSerializer(read_only=True)
 
     class Meta:
         model = Ticket
@@ -41,5 +58,5 @@ class TicketDetailSerializer(serializers.ModelSerializer):
             'ai_confidence', 'ai_checklist', 'parent_ticket', 'duplicate_count',
             'assigned_to', 'assigned_to_name', 'status', 'sla_deadline',
             'is_escalated', 'created_at', 'updated_at', 'resolved_at',
-            'updates', 'feedback'
+            'updates', 'feedback', 'ai_log'
         ]

@@ -1,6 +1,21 @@
 import React, { useState } from 'react';
-import { ShieldAlert, LogIn, UserPlus, AlertCircle } from 'lucide-react';
+import {
+  ShieldAlert,
+  LogIn,
+  UserPlus,
+  AlertCircle,
+  KeyRound,
+  Wrench,
+} from 'lucide-react';
 import { loginUser, registerUser, fetchCurrentUser } from '../api/authApi';
+
+const SPECIALIZATION_OPTIONS = [
+  { value: 'it', label: 'IT & Network' },
+  { value: 'electrical', label: 'Electrical & AC' },
+  { value: 'plumbing', label: 'Plumbing & Water' },
+  { value: 'lab_equipment', label: 'Lab Equipment' },
+  { value: 'general', label: 'General Maintenance' },
+];
 
 const LoginPage = ({ onLoginSuccess }) => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -8,9 +23,24 @@ const LoginPage = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('student');
+  const [specialization, setSpecialization] = useState('it');
+  const [staffCode, setStaffCode] = useState('');
   const [department, setDepartment] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const isStaffRole = role === 'faculty' || role === 'technician';
+
+  const formatErrorMessage = (err) => {
+    const data = err.response?.data;
+    if (!data) return 'Authentication failed. Please check credentials.';
+    if (typeof data.detail === 'string') return data.detail;
+    if (typeof data === 'object') {
+      const messages = Object.values(data).flat();
+      if (messages.length > 0) return messages.join(' ');
+    }
+    return 'Authentication failed. Please check credentials.';
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,15 +48,23 @@ const LoginPage = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      // If registering first, create the account before logging in
+      // Create account first when in registration mode
       if (isRegisterMode) {
-        await registerUser({
+        const payload = {
           username,
           email,
           password,
           role,
           department,
-        });
+        };
+        if (isStaffRole) {
+          payload.staff_code = staffCode;
+        }
+        if (role === 'technician') {
+          payload.specialization = specialization;
+          payload.is_on_duty = true;
+        }
+        await registerUser(payload);
       }
 
       // Login and store JWT tokens
@@ -34,15 +72,11 @@ const LoginPage = ({ onLoginSuccess }) => {
       localStorage.setItem('access_token', tokens.access);
       localStorage.setItem('refresh_token', tokens.refresh);
 
-      // Fetch user profile & pass to parent App
+      // Fetch user profile and pass to parent App
       const userProfile = await fetchCurrentUser();
       onLoginSuccess(userProfile);
     } catch (err) {
-      const msg =
-        err.response?.data?.detail ||
-        JSON.stringify(err.response?.data) ||
-        'Authentication failed. Please check credentials.';
-      setError(msg);
+      setError(formatErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -60,7 +94,7 @@ const LoginPage = ({ onLoginSuccess }) => {
             <h1 className="text-2xl font-bold text-white">CampusPulse AI</h1>
             <p className="text-xs text-slate-400">
               {isRegisterMode
-                ? 'Create your campus account'
+                ? 'Create your official university account'
                 : 'Sign in to access incident operations'}
             </p>
           </div>
@@ -85,7 +119,7 @@ const LoginPage = ({ onLoginSuccess }) => {
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. admin or tech_rafiq"
+              placeholder="e.g. bijoy_student or tech_it"
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
             />
           </div>
@@ -94,14 +128,14 @@ const LoginPage = ({ onLoginSuccess }) => {
             <>
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">
-                  University Email
+                  Official University Email (@seu.edu.bd)
                 </label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="student@university.edu"
+                  placeholder="your.id@seu.edu.bd"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -113,12 +147,15 @@ const LoginPage = ({ onLoginSuccess }) => {
                   </label>
                   <select
                     value={role}
-                    onChange={(e) => setRole(e.target.value)}
+                    onChange={(e) => {
+                      setRole(e.target.value);
+                      setStaffCode('');
+                    }}
                     className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
                   >
-                    <option value="student">Student / Staff</option>
+                    <option value="student">Student</option>
+                    <option value="faculty">Faculty</option>
                     <option value="technician">Technician</option>
-                    <option value="admin">Admin</option>
                   </select>
                 </div>
 
@@ -131,10 +168,49 @@ const LoginPage = ({ onLoginSuccess }) => {
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
                     placeholder="e.g. CSE / EEE"
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
+
+              {/* Technician Specialization Dropdown */}
+              {role === 'technician' && (
+                <div>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-sky-400 mb-1">
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>Technician Specialization</span>
+                  </label>
+                  <select
+                    value={specialization}
+                    onChange={(e) => setSpecialization(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-sky-500/40 text-sm text-white focus:outline-none focus:border-sky-400"
+                  >
+                    {SPECIALIZATION_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Secret Access Code Field for Faculty & Technician */}
+              {isStaffRole && (
+                <div>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-amber-400 mb-1">
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>University Staff Access Code</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={staffCode}
+                    onChange={(e) => setStaffCode(e.target.value)}
+                    placeholder="Enter secret staff code"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-amber-500/40 text-sm text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              )}
             </>
           )}
 

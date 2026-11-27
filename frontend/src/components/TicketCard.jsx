@@ -10,10 +10,19 @@ import {
   Layers,
   Star,
   MessageSquareCheck,
+  AlertTriangle,
+  BrainCircuit,
 } from 'lucide-react';
 
 const TicketCard = ({ ticket, user, onOpenTechUpdate, onOpenFeedback }) => {
   const [showChecklist, setShowChecklist] = useState(false);
+  const [showAiLog, setShowAiLog] = useState(false);
+
+  const isOverdue =
+    ticket.status !== 'resolved' &&
+    ticket.status !== 'closed' &&
+    ticket.sla_deadline &&
+    new Date(ticket.sla_deadline) < new Date();
 
   const urgencyStyles = {
     critical: 'bg-rose-500/15 text-rose-300 border-rose-500/40',
@@ -40,7 +49,6 @@ const TicketCard = ({ ticket, user, onOpenTechUpdate, onOpenFeedback }) => {
     });
   };
 
-  // Get latest technician update if any
   const latestUpdate =
     ticket.updates && ticket.updates.length > 0
       ? ticket.updates[ticket.updates.length - 1]
@@ -57,7 +65,13 @@ const TicketCard = ({ ticket, user, onOpenTechUpdate, onOpenFeedback }) => {
     !ticket.feedback;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 transition space-y-4">
+    <div
+      className={`bg-slate-900 border rounded-2xl p-5 transition space-y-4 ${
+        isOverdue
+          ? 'border-rose-500/50 shadow-lg shadow-rose-950/20'
+          : 'border-slate-800 hover:border-slate-700'
+      }`}
+    >
       {/* Top Row: ID, Title, Badges */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
@@ -73,6 +87,14 @@ const TicketCard = ({ ticket, user, onOpenTechUpdate, onOpenFeedback }) => {
             >
               {ticket.urgency}
             </span>
+
+            {isOverdue && (
+              <span className="text-xs uppercase font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                SLA Breached • Escalated
+              </span>
+            )}
+
             {ticket.duplicate_count > 0 && (
               <span className="text-xs px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
                 <Layers className="w-3 h-3" />
@@ -138,8 +160,18 @@ const TicketCard = ({ ticket, user, onOpenTechUpdate, onOpenFeedback }) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-rose-400 shrink-0" />
-          <span className="truncate">SLA: {formatDate(ticket.sla_deadline)}</span>
+          <Clock
+            className={`w-4 h-4 shrink-0 ${
+              isOverdue ? 'text-rose-400' : 'text-slate-400'
+            }`}
+          />
+          <span
+            className={`truncate ${
+              isOverdue ? 'text-rose-300 font-medium' : ''
+            }`}
+          >
+            SLA: {formatDate(ticket.sla_deadline)}
+          </span>
         </div>
       </div>
 
@@ -180,9 +212,9 @@ const TicketCard = ({ ticket, user, onOpenTechUpdate, onOpenFeedback }) => {
         </div>
       )}
 
-      {/* Expandable AI Checklist */}
-      {ticket.ai_checklist && ticket.ai_checklist.length > 0 && (
-        <div className="pt-1">
+      {/* Expandable AI Checklist & Transparent AI Decision Log */}
+      <div className="pt-1 flex flex-wrap items-center gap-4">
+        {ticket.ai_checklist && ticket.ai_checklist.length > 0 && (
           <button
             type="button"
             onClick={() => setShowChecklist(!showChecklist)}
@@ -199,19 +231,58 @@ const TicketCard = ({ ticket, user, onOpenTechUpdate, onOpenFeedback }) => {
               <ChevronDown className="w-3.5 h-3.5" />
             )}
           </button>
+        )}
 
-          {showChecklist && (
-            <ul className="mt-3 space-y-2 bg-slate-950/70 border border-slate-800 rounded-xl p-3.5">
-              {ticket.ai_checklist.map((step, index) => (
-                <li
-                  key={index}
-                  className="flex items-start gap-2 text-xs text-slate-300"
-                >
-                  <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ul>
+        {ticket.ai_log && (
+          <button
+            type="button"
+            onClick={() => setShowAiLog(!showAiLog)}
+            className="flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 transition cursor-pointer"
+          >
+            <BrainCircuit className="w-3.5 h-3.5" />
+            <span>Transparent AI Decision Log</span>
+            {showAiLog ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* AI Checklist Drawer */}
+      {showChecklist && ticket.ai_checklist && (
+        <ul className="space-y-2 bg-slate-950/70 border border-slate-800 rounded-xl p-3.5">
+          {ticket.ai_checklist.map((step, index) => (
+            <li
+              key={index}
+              className="flex items-start gap-2 text-xs text-slate-300"
+            >
+              <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span>{step}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Transparent AI Decision Log Drawer */}
+      {showAiLog && ticket.ai_log && (
+        <div className="bg-sky-950/25 border border-sky-500/30 rounded-xl p-3.5 space-y-2 text-xs">
+          <div className="flex items-center justify-between text-sky-300 font-semibold">
+            <span>AI Triage & Routing Audit Trail</span>
+            <span className="px-2 py-0.5 rounded bg-sky-500/20 text-[11px]">
+              Detected Language: {ticket.ai_log.detected_language}
+            </span>
+          </div>
+          <p className="text-slate-300">
+            <strong className="text-slate-400">Classification Reasoning:</strong>{' '}
+            {ticket.ai_log.reasoning}
+          </p>
+          {ticket.ai_log.assigned_technician_reason && (
+            <p className="text-slate-300">
+              <strong className="text-slate-400">Routing Decision:</strong>{' '}
+              {ticket.ai_log.assigned_technician_reason}
+            </p>
           )}
         </div>
       )}
